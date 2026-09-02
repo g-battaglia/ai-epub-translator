@@ -1,0 +1,34 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run python -m unittest discover -s tests
+      - name: wheel smoke test
+        shell: bash
+        run: |
+          uv build
+          uv venv smoke && source smoke/bin/activate 2>/dev/null || source smoke/Scripts/activate
+          uv pip install dist/*.whl
+          ai-epub-translator --version
+          ai-epub-translator --help > /dev/null
+          ai-epub-translator list

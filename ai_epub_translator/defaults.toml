@@ -1,0 +1,61 @@
+# ai-epub-translator — user configuration
+# Lives in ~/.config/ai-epub-translator/config.toml (%APPDATA% on Windows).
+# A book overrides any of this in its own book.toml.
+
+[model]
+# Any OpenAI-compatible chat-completions server. Ollama listens on 11434,
+# LM Studio on 1234, llama-server on 8080, omlx on 8000 (or what you chose).
+base_url = "http://localhost:11434/v1"
+# The model id as the server reports it (`ai-epub-translator doctor` lists them).
+# Measured with gemma-4-26b: a much smaller model has not been measured.
+model = ""
+
+[languages]
+# Defaults for `setup`; each book records its own pair in book.toml.
+source = "english"
+target = "italian"
+
+[register]
+# How the translation addresses the reader (a hint passed to the model).
+default = "tu"
+
+[paths]
+# The library: one folder per book. Empty = the XDG data dir
+# (~/.local/share/ai-epub-translator/books; %LOCALAPPDATA% on Windows).
+library = ""
+
+[verify]
+truncation_ratio = 0.5
+pagebreak_re = 'epub:type="pagebreak"'
+# a paragraph whose translated text is below this fraction of the original was
+# summarized, not translated
+block_text_ratio = 0.7
+block_text_min = 80
+# the judge sees the whole chapter up to this many chars per side
+check_max_chars = 150000
+
+[units]
+# prose per model call, and single-unit re-asks after a rejected answer
+batch_chars = 16000
+retries = 2
+
+[repair]
+block_retries = 2
+
+[llm]
+retries = 3
+backoff_s = 5
+
+[ui]
+# stream | percent | both
+progress = "percent"
+
+[detection]
+# CSS classes that mark code: never translated, their count must not change
+code_class_hints = [
+  "programs", "program", "programlisting", "sourcecode", "source", "code",
+  "codestring", "codestrong1", "codestrong2", "codeitalic1", "codeitalic",
+  "listing", "listings", "screen", "literal", "command", "filename",
+  "varname", "constant", "keyword", "kwd", "function", "typename",
+  "classname", "method", "ent", "userinput", "computeroutput",
+]

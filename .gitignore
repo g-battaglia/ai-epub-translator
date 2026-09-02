@@ -1,0 +1,24 @@
+# Skills installed into agent directories (`npx skills add`): the source is skills/
+skills-lock.json
+.claude/
+.codex/
+.agents/
+.opencode/
+.cursor/
+.gemini/
+
+# Originals and outputs, wherever they land
+*.epub
+*.pdf
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+dist/
+build/
+*.egg-info/
+.venv/
+
+# OS / editors
+.DS_Store

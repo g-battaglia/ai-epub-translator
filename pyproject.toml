@@ -1,0 +1,67 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-epub-translator"
+version = "1.0.0"
+description = "Translate EPUB ebooks with a local LLM, offline: the model translates the prose, the markup never touches it"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Giacomo Battaglia" }]
+keywords = ["epub", "ebook", "translation", "machine-translation", "llm",
+            "local-llm", "ollama", "lm-studio", "gemma", "offline", "privacy"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Text Processing :: Linguistic",
+  "Topic :: Text Processing :: Markup :: XML",
+  "Topic :: Utilities",
+]
+dependencies = ["lxml>=4.9"]
+
+[project.scripts]
+ai-epub-translator = "ai_epub_translator.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/g-battaglia/ai-epub-translator"
+Source = "https://github.com/g-battaglia/ai-epub-translator"
+Issues = "https://github.com/g-battaglia/ai-epub-translator/issues"
+Changelog = "https://github.com/g-battaglia/ai-epub-translator/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ai_epub_translator"]
+
+[tool.hatch.build.targets.sdist]
+include = ["ai_epub_translator/", "tests/", "tools/", "docs/", "skills/",
+           "README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE",
+           "CHANGELOG.md", "pyproject.toml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# O/T are the original and translated token streams, named so on purpose
+"ai_epub_translator/structdiff.py" = ["E741"]
+"tests/*" = ["E741", "E702"]
