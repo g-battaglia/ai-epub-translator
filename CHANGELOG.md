@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-09-02
+
+- The Homebrew instructions shipped with 1.0.0 named a tap that does not carry
+  this formula. This repository **is** its own tap:
+  `brew tap g-battaglia/ai-epub-translator https://github.com/g-battaglia/ai-epub-translator`
+  then `brew install g-battaglia/ai-epub-translator/ai-epub-translator`. A PyPI
+  page shows the README of the artefacts, and those are immutable — the only way
+  to correct it is a release.
+- The release workflow skips the upload when the version is already on PyPI, so a
+  release published by hand no longer fails the run; the GitHub release and the
+  formula refresh still happen.
+
 ## [1.0.0] — 2026-09-02
 
 First public release.

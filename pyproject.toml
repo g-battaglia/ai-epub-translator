@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ai-epub-translator"
-version = "1.0.0"
+version = "1.0.1"
 description = "Translate EPUB ebooks with a local LLM, offline: the model translates the prose, the markup never touches it"
 readme = "README.md"
 requires-python = ">=3.9"

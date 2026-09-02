@@ -29,7 +29,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with: { name: dist, path: dist/ }
+      # A release uploaded by hand (twine) is already there; uploading it again
+      # would fail the run for no reason.
+      - name: is this version already on PyPI?
+        id: pypi
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://pypi.org/pypi/ai-epub-translator/${GITHUB_REF_NAME#v}/json")
+          if [ "$code" = 200 ]; then echo "published=yes" >> "$GITHUB_OUTPUT"
+          else echo "published=no" >> "$GITHUB_OUTPUT"; fi
       - uses: pypa/gh-action-pypi-publish@release/v1
+        if: steps.pypi.outputs.published == 'no'
         with:
           repository-url: ${{ github.event.inputs.repository == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
       - uses: softprops/action-gh-release@v2

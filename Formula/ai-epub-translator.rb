@@ -7,8 +7,8 @@ class AiEpubTranslator < Formula
 
   desc "Translate EPUB ebooks with a local LLM, offline"
   homepage "https://github.com/g-battaglia/ai-epub-translator"
-  url "https://files.pythonhosted.org/packages/source/a/ai-epub-translator/ai_epub_translator-1.0.0.tar.gz"
-  sha256 "011172642c410a34cbb45d7e5027dcc08fd8fe638274ca0d53dd97181149176f"
+  url "https://files.pythonhosted.org/packages/source/a/ai-epub-translator/ai_epub_translator-1.0.1.tar.gz"
+  sha256 "f2be498b14dc791e245ea9fe7b7990fdea6aa4a5ed8808b14b00e56ce84a6cd6"
   license "MIT"
   head "https://github.com/g-battaglia/ai-epub-translator.git", branch: "main"
 

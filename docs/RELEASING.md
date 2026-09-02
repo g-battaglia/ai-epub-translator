@@ -26,6 +26,24 @@ Releases are published to PyPI by GitHub Actions through **trusted publishing**
 Dry run: *Actions → release → Run workflow* with `repository = testpypi`, then
 `uvx --index-url https://test.pypi.org/simple/ ai-epub-translator --version`.
 
+## Publishing by hand
+
+The workflow is not the only way in, and the upload step checks PyPI first: if the
+version is already there it is skipped, so a hand-made release does not turn the
+run red. With an API token (`__token__` as the username):
+
+```bash
+uv build
+uvx twine check dist/*
+export TWINE_USERNAME=__token__
+uvx twine upload dist/*          # the token goes in at the password prompt
+git push origin vX.Y.Z           # release notes, artefacts, formula refresh
+```
+
+Doing it this way has one advantage worth knowing: the formula generated with
+`--sdist dist/*.tar.gz` carries the SHA-256 of the very bytes you upload, so it is
+already right before the release exists.
+
 ## Homebrew
 
 **This repository is its own tap** — there is no separate `homebrew-*` repository,
