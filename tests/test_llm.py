@@ -480,6 +480,28 @@ class TestTranslateUnits(unittest.TestCase):
         self.assertEqual(res[1], ("Secondo.", ""))
         self.assertNotIn("Hello", calls[0][0])          # only unit 1 in the batch
 
+    def test_an_already_wrapped_reason_is_not_wrapped_again(self):
+        # the cache stores the settled string, so a reason loaded from a previous
+        # run arrives already wrapped — once per pass it crossed. It must settle
+        # flat: on a real book it reached '5 (4 (3 (...)))' with the defect
+        # buried at the end.
+        chat = _seg_chat(['<seg id="1">Secondo.</seg>'])
+        wrapped = ("gave up after 4 attempts (gave up after 3 attempts "
+                   "(placeholder <g1> </g1> missing))")
+        res = self._run(chat, history={0: (5, wrapped)})
+        self.assertEqual(res[0], (None, "gave up after 5 attempts (placeholder <g1> </g1> missing)"))
+
+    def test_core_reason_peels_every_layer(self):
+        self.assertEqual(llm._core_reason("term 'house' not rendered as 'casa'"),
+                         "term 'house' not rendered as 'casa'")
+        self.assertEqual(llm._core_reason("gave up after 3 attempts (plain defect)"),
+                         "plain defect")
+        self.assertEqual(
+            llm._core_reason("gave up after 5 attempts (gave up after 4 attempts "
+                             "(gave up after 3 attempts (term 'x' not rendered as 'y')))"),
+            "term 'x' not rendered as 'y'")
+        self.assertEqual(llm._core_reason(""), "")
+
     def test_a_too_slow_batch_is_split_not_failed(self):
         calls = []
 

@@ -726,6 +726,27 @@ def accept_unit(unit, answer: str, cfg: dict, strict: bool = True) -> tuple:
     return None, why, focus
 
 
+_GAVE_UP_RE = re.compile(r"^gave up after \d+ attempts \((.*)\)$")
+
+
+def _core_reason(why: str) -> str:
+    """The innermost defect of a (possibly wrapped) failure reason.
+
+    Every run wraps the reason it loaded from the cache in its own
+    ``gave up after N attempts (...)`` before settling it, and the settled
+    string is what the next run loads: one wrapper per pass. On a real book
+    (a glossary entry valid for most of the text and wrong for the rest) the
+    reported reason reached three levels — the actual defect buried at the
+    end, under numbers the attempts column already carries. Peel every layer.
+    """
+    why = (why or "").strip()
+    while True:
+        m = _GAVE_UP_RE.match(why)
+        if not m:
+            return why
+        why = m.group(1).strip()
+
+
 def translate_units(units: list, cfg: dict, chat_fn, *, progress=None,
                     on_unit=None, history: dict = None, total: int = 0,
                     done: int = 0, log=print) -> dict:
@@ -754,7 +775,7 @@ def translate_units(units: list, cfg: dict, chat_fn, *, progress=None,
     for u in units:
         n, why = history.get(u.idx, (0, ""))
         if n > retries:
-            settle(u, None, f"gave up after {n} attempts ({why})")
+            settle(u, None, f"gave up after {n} attempts ({_core_reason(why)})")
         else:
             fresh.append(u)
     queue = _batches(fresh, batch_chars)
