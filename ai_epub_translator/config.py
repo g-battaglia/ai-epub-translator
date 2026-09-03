@@ -104,7 +104,25 @@ def _unquote(s: str) -> str:
 def _parse_array(text: str) -> list:
     start, end = text.find("["), text.rfind("]")
     body = text[start + 1:end] if start != -1 and end != -1 else text
-    return [_unquote(p) for p in body.split(",") if p.strip()]
+    # A comma inside a quoted string belongs to the phrase — "Loomis, The
+    # Grail" is one citation, not two entries — so split outside quotes only.
+    parts, buf, quote = [], "", ""
+    for ch in body:
+        if quote:
+            buf += ch
+            if ch == quote:
+                quote = ""
+        elif ch in ('"', "'"):
+            quote = ch
+            buf += ch
+        elif ch == ",":
+            parts.append(buf)
+            buf = ""
+        else:
+            buf += ch
+    if buf.strip() or (parts and buf):
+        parts.append(buf)
+    return [_unquote(p) for p in parts if p.strip()]
 
 
 def parse_toml(text: str) -> dict:

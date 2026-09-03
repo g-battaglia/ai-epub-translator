@@ -120,6 +120,17 @@ class TestGlossaryExceptions(unittest.TestCase):
             self.assertEqual(merged_config(bd)["glossary_exceptions"],
                              {"archetypal": ["Archetypal Psychology"]})
 
+    def test_a_comma_inside_a_quoted_phrase_stays_one_entry(self):
+        # citations carry commas ("Loomis, The Grail"); splitting the array on
+        # every comma read the one title as two broken halves
+        from ai_epub_translator.config import load_glossary_exceptions
+        with tempfile.TemporaryDirectory() as bd:
+            with open(os.path.join(bd, "glossary.toml"), "w", encoding="utf-8") as f:
+                f.write('[exceptions]\n"Grail" = [\n  "Loomis, The Grail",\n'
+                        '  "The Grail Dynasty",\n]\n')
+            self.assertEqual(load_glossary_exceptions(bd),
+                             {"Grail": ["Loomis, The Grail", "The Grail Dynasty"]})
+
 
 class TestGlossaryNotesConfig(unittest.TestCase):
     """Notes: multi-line TOML strings, preserved across saves."""
