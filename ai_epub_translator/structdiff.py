@@ -539,8 +539,17 @@ def _glossary_defects(o_text: str, t_text: str, glossary: dict,
     for src, dst in glossary.items():
         src_f = _fold(src)
         o_seen = o_folded
+        t_seen = t_folded
         for phrase in (exceptions or {}).get(src, []):
             o_seen = o_seen.replace(_fold(phrase), " ")
+            # The phrase names a context where the term legitimately stays in
+            # the source language — a title, a proper name — so the model keeps
+            # it verbatim in the translation. Excising it from the original only
+            # made the check demand the rendering in a block that never carried
+            # the term, while the title surviving in the translation still read
+            # as an untranslated leftover: the entry stayed unsatisfiable, which
+            # is the one state a check must never be in.
+            t_seen = t_seen.replace(_fold(phrase), " ")
         if not re.search(r"\b" + re.escape(src_f), o_seen):
             continue                       # term not in this block: nothing to check
         rendered = _term_stem(dst) in t_folded
@@ -560,7 +569,7 @@ def _glossary_defects(o_text: str, t_text: str, glossary: dict,
         keeps_source = bool(re.match(r'\b' + re.escape(src_f) + r'\b', _fold(dst)))
         cognate = _term_stem(src) == _term_stem(dst)
         left_untranslated = (not keeps_source and not cognate) and bool(
-            re.search(r'\b' + re.escape(src_f) + r'\b', t_folded))
+            re.search(r'\b' + re.escape(src_f) + r'\b', t_seen))
         if not rendered or left_untranslated:
             missing.append((src, dst))
     return missing
