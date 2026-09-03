@@ -469,6 +469,39 @@ def _term_stem(term: str) -> str:
     return folded[:-1] if len(folded) >= 5 else folded
 
 
+_TERM_MISS_RE = re.compile(r"term '([^']+)' not rendered as '([^']+)'")
+
+
+def glossary_conflicts(reasons_by_file: dict) -> list:
+    """Pinned terms no retry ever satisfied, aggregated over the failed files.
+
+    ``reasons_by_file`` maps a spine file to the failure texts of its units
+    (the cache) and, for saved files, of its verification. A model slip is
+    bounded by the retries; what survives them in several files is a
+    constraint the text itself contradicts. Measured on a real book: one
+    entry right for ~90% of the occurrences and wrong for the rest held 17
+    files unresolved over two runs (~30 wasted LLM attempts), and the run's
+    own closing advice — "a term wrong over and over? pin it" — addresses
+    the opposite case, an unpinned term. Nothing pointed at the glossary.
+
+    Returns ``[{term, expected, files, hits}]``, most widespread first. A
+    term becomes a conflict only across two files or more: one file can be
+    a genuinely hard unit, and a false alarm here would send a correct pin
+    to be re-decided.
+    """
+    seen: dict = {}
+    for rel, texts in (reasons_by_file or {}).items():
+        for m in _TERM_MISS_RE.finditer("\n".join(texts or [])):
+            src, dst = m.group(1), m.group(2)
+            e = seen.setdefault(src, {"term": src, "expected": dst,
+                                      "files": [], "hits": 0})
+            if rel not in e["files"]:
+                e["files"].append(rel)
+            e["hits"] += 1
+    out = [e for e in seen.values() if len(e["files"]) > 1]
+    return sorted(out, key=lambda e: (-len(e["files"]), -e["hits"], e["term"]))
+
+
 def _glossary_defects(o_text: str, t_text: str, glossary: dict,
                       exceptions: dict = None) -> list:
     """Terms required by the glossary but not rendered in the translated block.

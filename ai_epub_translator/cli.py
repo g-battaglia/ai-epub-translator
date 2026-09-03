@@ -48,7 +48,7 @@ from .repair import fix_leftovers, match_line_ending, polish_file, rewrite_lang
 from .state import load as load_state
 from .state import mark_done, mark_failed
 from .state import save as save_state
-from .structdiff import GLOSSARY, _fold, analyze
+from .structdiff import GLOSSARY, _fold, analyze, glossary_conflicts
 from .ui import MODES as PROGRESS_MODES
 from .ui import Progress
 from .verify import verify_file
@@ -541,14 +541,35 @@ def cmd_run(args):
         return 0
 
     print(f"✗ {slug}: {len(done)}/{total} translated, {len(bad)} file(s) unresolved:")
+    # The listing is per file; a pin that no file could satisfy is invisible
+    # in it. Aggregate the failure texts once, over every unresolved file, and
+    # say it plainly when one glossary entry explains the hold-out: that is
+    # the reader's call to make, not another retry's.
+    reasons_by_file = {}
+    with Cache(bd) as cache:
+        for rel in bad:
+            reasons_by_file[rel] = [why for _, _, why in cache.failed_units(rel)]
     for rel in bad[:10]:
         reasons = ""
         path = os.path.join(target, rel)
         if rel in done and os.path.isfile(path):
             with open(path, encoding="utf-8") as f:
                 ver = verify_file(_read_original(bd, rel), f.read(), cfg)
+            reasons_by_file.setdefault(rel, []).extend(ver["reasons"])
             reasons = "; ".join(ver["reasons"])[:110]
         print(f"  - {rel}{': ' + reasons if reasons else ' (not translated)'}")
+    conflicts = glossary_conflicts(reasons_by_file)
+    if conflicts:
+        print()
+        for e in conflicts[:3]:
+            print(f"  ⚠ the pinned '{e['term']}' = '{e['expected']}' was never met "
+                  f"in {len(e['files'])} file(s) ({e['hits']} failure(s))")
+        print("    a pin no retry can satisfy means the text disagrees with it:")
+        print("    either the rendering is wrong for this book, or the term has a")
+        print("    second sense here — [exceptions] in glossary.toml names those")
+        print(f"    contexts ('units {slug} <file>' shows the text to judge from).")
+        print(f"    Fix the glossary first: 'run {slug}' then re-translates only")
+        print("    the units that carry the term.")
     print("\nWhat to do:")
     print(f"  ai-epub-translator status {slug}       the units that failed, and why")
     print(f"  ai-epub-translator run {slug}          ask again (the rest of each file is kept)")

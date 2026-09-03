@@ -482,5 +482,53 @@ class TestSelfDiff(unittest.TestCase):
         self.assertTrue(report["passed"], report["mismatches"][:3])
 
 
+class TestGlossaryConflicts(unittest.TestCase):
+    """Aggregating failure texts into a diagnosis the per-file list cannot show."""
+
+    def test_a_term_failed_in_several_files_is_a_conflict(self):
+        why = "gave up after 5 attempts (gave up after 4 attempts " \
+              "(term 'house' not rendered as 'casa'))"
+        out = S.glossary_conflicts({"a.html": [why, why],
+                                    "b.html": [why],
+                                    "c.html": [why]})
+        self.assertEqual(len(out), 1)
+        e = out[0]
+        self.assertEqual((e["term"], e["expected"]), ("house", "casa"))
+        self.assertEqual(e["files"], ["a.html", "b.html", "c.html"])
+        self.assertEqual(e["hits"], 4)                  # every mention, wrapped or not
+
+    def test_a_term_failed_in_one_file_is_noise(self):
+        why = "term 'trine' not rendered as 'trigono'"
+        self.assertEqual(S.glossary_conflicts({"a.html": [why, why, why]}), [])
+
+    def test_verify_texts_count_too_and_each_file_once(self):
+        # a saved file carries both its unit reasons and its verification ones
+        unit = "term 'house' not rendered as 'casa'"
+        verify = "term 'house' not rendered as 'casa' in <dd>"
+        out = S.glossary_conflicts({"a.html": [unit, verify],
+                                    "b.html": [verify]})
+        self.assertEqual(out[0]["files"], ["a.html", "b.html"])
+        self.assertEqual(out[0]["hits"], 3)
+
+    def test_widest_term_first_then_most_hits(self):
+        w = "term 'w' not rendered as 'x'"
+        n = "term 'n' not rendered as 'm'"
+        # same spread (2 files each): more hits wins
+        out = S.glossary_conflicts({"a.html": [w], "b.html": [w],
+                                    "c.html": [n, n, n], "d.html": [n]})
+        self.assertEqual([e["term"] for e in out], ["n", "w"])
+        # wider spread wins over raw hits
+        out = S.glossary_conflicts({"a.html": [w], "b.html": [w], "e.html": [w],
+                                    "c.html": [n, n, n], "d.html": [n]})
+        self.assertEqual([e["term"] for e in out], ["w", "n"])
+
+    def test_empty_input_and_unrelated_reasons(self):
+        self.assertEqual(S.glossary_conflicts({}), [])
+        self.assertEqual(S.glossary_conflicts(None), [])
+        self.assertEqual(
+            S.glossary_conflicts({"a.html": ["placeholder <g1> </g1> missing"],
+                                  "b.html": ["the segment was missing"]}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

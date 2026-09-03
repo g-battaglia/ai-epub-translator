@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+- `run` reported a unit past its retry budget with the failure reason of the
+  previous pass wrapped inside the new one, once per pass — on a real book
+  three levels deep, with the actual defect buried at the end. The reason is
+  now peeled to its core before it is wrapped (`llm._core_reason`).
+- When unresolved files share one glossary entry no retry ever satisfied, the
+  closing report says so: `⚠ the pinned 'house' = 'casa' was never met in 12
+  file(s)`, with the two possible causes (a rendering wrong for that book, or
+  a second sense of the term — `[exceptions]`). Until now the report's advice
+  pointed only at the opposite case, an unpinned term, and the entry had to
+  be found by hand. A term becomes a conflict only across two files or more:
+  one file can be a genuinely hard unit (`structdiff.glossary_conflicts`).
+
 ## [1.0.1] — 2026-09-02
 
 - The Homebrew instructions shipped with 1.0.0 named a tap that does not carry
