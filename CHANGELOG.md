@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-03
+
 - `run` reported a unit past its retry budget with the failure reason of the
   previous pass wrapped inside the new one, once per pass — on a real book
   three levels deep, with the actual defect buried at the end. The reason is
@@ -17,6 +19,24 @@ All notable changes to this project are documented here. The format follows
   pointed only at the opposite case, an unpinned term, and the entry had to
   be found by hand. A term becomes a conflict only across two files or more:
   one file can be a genuinely hard unit (`structdiff.glossary_conflicts`).
+- A segment without placeholders can only have invented ones, and the model
+  invents them: it applies the prompt's drop-cap rule where the source has no
+  markup, writing `<g1>P</g1>oss'essere` over an otherwise flawless answer
+  (deterministic across retries, measured on a real book). The invented tokens
+  are now dropped and the prose kept instead of the answer being rejected.
+  The same echo beside a real marker (`<g1>L</g1>a nostra ricerca…` keeping a
+  true `<x1/>` intact) is treated the same way — unless a marker is also
+  missing, which stays a reported defect so a renamed placeholder cannot slip
+  through. The "repeated" rejection now tells the model what to do ("keep each
+  exactly once, in the original order").
+- A glossary `[exceptions]` phrase was excised from the original only: the
+  title correctly kept in the translation still read as an untranslated
+  leftover, so the entry stayed unsatisfiable — the documented use case (a
+  journal title in English) never worked. The phrases are now excised from
+  both sides before the leftover test.
+- The TOML parser split array entries on every comma, including those inside
+  a quoted phrase: `"Loomis, The Grail"` became two broken halves. Commas
+  inside quotes are no longer separators.
 
 ## [1.0.1] — 2026-09-02
 
