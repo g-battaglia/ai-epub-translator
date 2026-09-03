@@ -174,9 +174,20 @@ class TestRender(unittest.TestCase):
         u = self._unit()
         self.assertEqual(U.render(u, "A B C <g2>D</g2> E<x3/>F")[1],
                          "placeholder <g1> </g1> missing")
-        self.assertEqual(U.render(u, "A <g1>B</g1> C <g2>D</g2> E<x3/>F<x4/>")[1],
-                         "placeholder <x4/> not in the original")
         self.assertIn("repeated", U.render(u, "A <g1>B</g1><g1>x</g1> C <g2>D</g2> E<x3/>F")[1])
+
+    def test_invented_tokens_beside_real_ones_are_dropped_not_rejected(self):
+        # <g1>L</g1>a nostra ricerca… keeping a true <x1/> intact: the echo of
+        # the drop-cap rule, deterministic on a real book, over a flawless
+        # translation. The invented tokens go, everything real stays.
+        u = self._unit()
+        inner, why = U.render(u, "A <g1>B</g1> C <g2>D</g2> E<x3/>F<x4/>")
+        self.assertEqual((why, inner), ("", "A <em>B</em> C <strong>D</strong> E<br/>F"))
+        inner, why = U.render(u, "<g9>Q</g9>A <g1>B</g1> C <g2>D</g2> E<x3/>F")
+        self.assertEqual((why, inner), ("", "QA <em>B</em> C <strong>D</strong> E<br/>F"))
+        # a renamed marker (g2 written as g4) is a missing marker, not an echo
+        self.assertEqual(U.render(u, "A <g1>B</g1> C <g4>D</g4> E<x3/>F")[1],
+                         "placeholder <g2> </g2> missing")
 
     def test_reordering_is_rejected_strictly_and_accepted_relaxed_if_it_nests(self):
         u = self._unit()
@@ -197,6 +208,31 @@ class TestRender(unittest.TestCase):
         inner, why = U.render(v, "Usa #include <stdlib.h> qui.")
         self.assertEqual(why, "")
         self.assertEqual(inner, "Usa #include &lt;stdlib.h&gt; qui.")
+
+    def test_invented_placeholders_on_a_bare_unit_are_dropped_not_rejected(self):
+        # a segment without markup can only have invented markers: the model
+        # echoing the prompt's drop-cap example (<g1>P</g1>oss'essere on a real
+        # book, deterministic across retries) over an otherwise flawless
+        # translation. The tags go, the prose stays.
+        body = "<p>Could the mystery relate to the object called the Grail?</p>"
+        (u,) = [x for x in U.segment(doc(body)).units if x.idx == 1]
+        self.assertEqual(u.markers, [])
+        inner, why = U.render(u, "<g1>P</g1>otrebbe il mistero riguardare il Graal?")
+        self.assertEqual(why, "")
+        self.assertEqual(inner, "Potrebbe il mistero riguardare il Graal?")
+        inner, why = U.render(u, "Potrebbe<x1/> riguardare il Graal?")
+        self.assertEqual((inner, why), ("Potrebbe riguardare il Graal?", ""))
+
+    def test_an_exception_phrase_surviving_in_the_translation_is_not_a_leftover(self):
+        # the phrase names a context where the term stays in the source language,
+        # so the model keeps it verbatim: that surviving title is correct, and
+        # reading it as an untranslated leftover made the entry unsatisfiable
+        body = "<p>" + ("word " * 20) + "an archetypal force, in Archetypal Psychology.</p>"
+        (u,) = [x for x in U.segment(doc(body)).units if x.idx == 1]
+        cfg = {"glossary": {"archetypal": "archetipico"},
+               "glossary_exceptions": {"archetypal": ["Archetypal Psychology"]}}
+        self.assertEqual(U.check_content(
+            u, "parola " * 20 + "una forza archetipica, in Archetypal Psychology.", cfg), "")
 
     def test_glossary_exceptions_skip_a_term_inside_a_named_phrase(self):
         body = '<p>' + ("word " * 20) + 'in Archetypal Psychology and Jungian Thought.</p>'

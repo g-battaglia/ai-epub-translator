@@ -423,16 +423,33 @@ def render(unit: Unit, answer: str, strict: bool = True) -> tuple:
     expected = unit.markers
     got = _normalize_markers(html.unescape(answer.strip()))
     seen = [m for m, _t in got if m]
+    if not expected and seen:
+        # A segment without placeholders can only have invented ones. The
+        # model echoes the prompt's drop-cap rule — on a real book it split
+        # "Poss'essere" as <g1>P</g1>oss'essere, deterministic across retries
+        # — while the translation underneath was flawless, terms included.
+        # A placeholder has no meaning of its own: it is the original's
+        # formatting, and this original has none, so the tags are dropped
+        # and the prose kept rather than the answer rejected.
+        return render(unit, "".join(t for _m, t in got), strict=strict)
     if seen != expected:
         missing = [m for m in expected if m not in seen]
         extra = [m for m in seen if m not in expected]
         if missing:
             return None, f"placeholder {' '.join(missing)} missing"
         if extra:
-            return None, f"placeholder {' '.join(extra)} not in the original"
+            # Invented tokens over an otherwise valid answer — the drop-cap
+            # echo again, now beside a real marker (<g1>L</g1>a nostra ricerca…
+            # keeping a true <x1/> intact, 2/2 deterministic on a real book).
+            # Dropped, not rejected: only when nothing is missing, so a
+            # renamed marker (<g1> become <g2>) still reports as missing.
+            keep = set(expected)
+            cleaned = "".join(t + (m if m in keep else "") for m, t in got)
+            return render(unit, cleaned, strict=strict)
         if sorted(seen) != sorted(expected):
             dup = sorted({m for m in seen if seen.count(m) > 1})
-            return None, f"placeholder {' '.join(dup)} repeated"
+            return None, (f"placeholder {' '.join(dup)} repeated — keep each "
+                          "exactly once, in the original order")
         if strict or not _nests(seen):
             return None, "placeholders out of their original order"
     # a tag the model invented (<i>, <br>) would be escaped and shipped as
