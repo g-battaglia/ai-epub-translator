@@ -159,7 +159,10 @@ def _pack_and_announce(bd: str, slug: str, cfg: dict, out: str = None,
                        open_it: bool = False) -> str:
     """Pack ``target/`` into an EPUB and print where to find/open it."""
     out = out or _default_epub_path(bd, slug, cfg)
-    path = pack_epub(P.target(bd), out)
+    # Attribution belongs to the exported edition, not the source-aligned
+    # workspace: generated pages must never enter recovery or verification.
+    from .disclosure import pack_translation
+    path = pack_translation(P.target(bd), out, cfg, logs.read_jsonl(bd))
     size_kb = max(1, os.path.getsize(path) // 1024)
     print(f"\n✓ EPUB ready: {path}  ({size_kb} KB)")
     if open_it:
@@ -383,6 +386,7 @@ def _process_file(bd: str, slug: str, rel: str, cfg: dict, *,
     cache.put_file(rel, orig_hash, text, "translated" if passed else "fail",
                    toks["prompt_tokens"], toks["completion_tokens"])
     rec = {"file": rel, "status": "pass" if passed else "fail",
+           "model": cfg["model"] if todo else None,
            "score": ver["score"], "checks": ver["checks"],
            "units": len(todo), "units_failed": len(failed), **toks}
 

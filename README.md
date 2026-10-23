@@ -59,6 +59,24 @@ ai-epub-translator run moby-dick                      # translate, verify, judge
 `run` prints where the finished `.epub` is (`<library>/moby-dick/moby-dick.de.epub`).
 `ai-epub-translator <command> -h` gives help and real examples.
 
+## AI translation disclosure
+
+Every `run` or `pack` export includes a high-contrast **AI TRANSLATED** cover
+and a final **Translation details** page (in English). The original cover artwork
+is retained inside a self-contained SVG cover; existing cover pages also point
+to the marked image. All original reading-order pages are kept. Use an EPUB
+reader with SVG support.
+
+The final page records the language pair, logged model names, export configuration,
+tool version, UTC export time and technical safeguards. Old translations without
+model history are explicitly marked as such; the configured model is not presented
+as proof of historical usage. No API keys, endpoint credentials or local file paths
+are included, and the page does not claim human review or guaranteed accuracy.
+
+Already translated a book? Run `ai-epub-translator pack <slug>` to update its EPUB
+without calling the model. Exporting operates on a temporary copy: original files,
+verified chapters, progress and recovery caches stay untouched.
+
 ## Configure
 
 `ai-epub-translator config init` writes a commented `~/.config/ai-epub-translator/config.toml`
