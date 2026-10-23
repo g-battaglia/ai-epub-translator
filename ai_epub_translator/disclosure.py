@@ -89,11 +89,11 @@ def _cover_art(root: Path, opf_path: Path, package: ET.Element) -> tuple:
 
 
 def _cover_svg(art: Path, media: str, title: str) -> str:
-    """A high-contrast band sits above the unmodified, aspect-fitted artwork."""
+    """Overlay a conspicuous stamp without reserving a band or shrinking the art."""
     image = ""
     if art is not None:
         data = base64.b64encode(art.read_bytes()).decode("ascii")
-        image = (f'<image x="0" y="180" width="1200" height="1620" '
+        image = (f'<image x="0" y="0" width="1200" height="1800" '
                  f'preserveAspectRatio="xMidYMid meet" '
                  f'xlink:href="data:{media};base64,{data}"/>')
     else:
@@ -117,10 +117,16 @@ def _cover_svg(art: Path, media: str, title: str) -> str:
             f'width="1200" height="1800" viewBox="0 0 1200 1800">'
             f'<title>{LABEL}</title><desc>{html.escape(title)}</desc>'
             f'<rect width="1200" height="1800" fill="white"/>{image}'
-            f'<rect width="1200" height="180" fill="#111111"/>'
-            f'<text x="600" y="120" text-anchor="middle" fill="white" '
+            # The stamp is painted after the full-size image, not laid out beside
+            # it. A translucent backing keeps it readable on any source artwork.
+            f'<g id="ai-translation-stamp" transform="rotate(-12 600 620)">'
+            f'<rect x="90" y="510" width="1020" height="210" rx="8" '
+            f'fill="white" fill-opacity="0.88" stroke="#b91c1c" stroke-width="12"/>'
+            f'<rect x="108" y="528" width="984" height="174" rx="3" '
+            f'fill="none" stroke="#b91c1c" stroke-width="3"/>'
+            f'<text x="600" y="650" text-anchor="middle" fill="#b91c1c" '
             f'font-family="sans-serif" font-size="92" font-weight="bold">'
-            f'{LABEL}</text></svg>')
+            f'{LABEL}</text></g></svg>')
 
 
 def _mark_cover_references(root: Path, opf_path: Path, package: ET.Element,
@@ -293,8 +299,7 @@ def add_disclosure(target: str, cfg: dict, records: list = None) -> None:
     (folder / "cover.svg").write_text(_cover_svg(art, media, title), encoding="utf-8")
     _mark_cover_references(root, opf_path, package, art, folder / "cover.svg")
     (folder / "cover.xhtml").write_text(_page(
-        LABEL, f'<h1 style="text-align:center">{LABEL}</h1>'
-        f'<div style="text-align:center"><img src="cover.svg" alt="{LABEL}"/></div>', "en"),
+        LABEL, f'<div style="text-align:center"><img src="cover.svg" alt="{LABEL}"/></div>', "en"),
         encoding="utf-8")
     spine = package.find(f"{{{OPF_NS}}}spine")
     (folder / "translation.xhtml").write_text(

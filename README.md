@@ -61,9 +61,10 @@ ai-epub-translator run moby-dick                      # translate, verify, judge
 
 ## AI translation disclosure
 
-Every `run` or `pack` export includes a high-contrast **AI TRANSLATED** cover
-and a final **Translation details** page (in English). The original cover artwork
-is retained inside a self-contained SVG cover; existing cover pages also point
+Every `run` or `pack` export overlays a large, tilted **AI TRANSLATED** stamp on
+the original cover and adds a final **Translation details** page (in English).
+The artwork stays full-size, without a separate banner or cropping, inside a
+self-contained SVG cover; existing cover pages also point
 to the marked image. All original reading-order pages are kept. Use an EPUB
 reader with SVG support.
 
