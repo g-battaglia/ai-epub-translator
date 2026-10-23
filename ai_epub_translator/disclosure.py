@@ -3,7 +3,8 @@
 Packaging uses a private copy: generated pages must not enter the source-aligned
 spine, cache or verification loop. The original artwork and every reading-order
 entry remain intact; an attributed cover is prepended and a technical page is
-appended. SVG keeps this dependency-free without degrading the source image.
+appended. macOS exports a native PNG for Apple Books thumbnails; other platforms
+use a self-contained SVG. Neither path adds a third-party dependency.
 """
 
 from __future__ import annotations
@@ -20,11 +21,40 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 
 from . import __version__
+from .config import lang_code
+from .cover_raster import render_cover_png
 from .epub import find_opf, localname, pack_epub
 from .xhtml import CLOSE, OPEN, VOID_K, tokenize
 
 OPF_NS = "http://www.idpf.org/2007/opf"
 LABEL = "AI TRANSLATED"
+_LABELS = {
+    "en": LABEL, "it": "Tradotto con l'AI", "fr": "Traduit par l'IA",
+    "de": "KI-übersetzt", "es": "Traducido con IA", "pt": "Traduzido com IA",
+    "nl": "Vertaald met AI", "sv": "AI-översatt", "no": "Oversatt med KI",
+    "da": "Oversat med AI", "fi": "Käännetty tekoälyllä", "pl": "Przetłumaczono przez AI",
+    "cs": "Přeloženo pomocí AI", "sk": "Preložené pomocou AI",
+    "sl": "Prevedeno z umetno inteligenco", "hr": "Prevedeno uz AI",
+    "sr": "Преведено помоћу ВИ", "bg": "Преведено с ИИ",
+    "hu": "MI-vel fordítva", "ro": "Tradus cu AI", "ru": "Переведено ИИ",
+    "uk": "Перекладено ШІ", "el": "Μετάφραση με AI",
+    "tr": "Yapay zekâ ile çevrildi", "ca": "Traduït amb IA", "gl": "Traducido con IA",
+    "eu": "AA bidez itzulita", "la": "Intelligentia artificiali translatum",
+    "ar": "مترجم بالذكاء الاصطناعي", "he": "תורגם באמצעות AI",
+    "fa": "ترجمه‌شده با هوش مصنوعی", "hi": "AI द्वारा अनुवादित",
+    "zh": "AI 翻译", "ja": "AI翻訳", "ko": "AI 번역",
+    "vi": "Được dịch bằng AI", "th": "แปลด้วย AI", "id": "Diterjemahkan dengan AI",
+    "ms": "Diterjemahkan dengan AI", "eo": "Tradukita per AI",
+}
+
+
+def translation_label(cfg: dict) -> str:
+    """Localize the visible stamp deterministically, never through the model."""
+    code = str(cfg.get("dest_code") or lang_code(cfg.get("target_lang") or "english"))
+    code = code.lower().split("-", 1)[0]
+    if code not in _LABELS:
+        raise ValueError("No localized AI translation stamp for language: " + code)
+    return _LABELS[code]
 
 
 def _local_file(root: Path, parent: Path, href: str) -> Path:
@@ -88,7 +118,7 @@ def _cover_art(root: Path, opf_path: Path, package: ET.Element) -> tuple:
     return _local_file(root, opf_path.parent, cover.get("href", "")), media
 
 
-def _cover_svg(art: Path, media: str, title: str) -> str:
+def _cover_svg(art: Path, media: str, title: str, label: str = LABEL) -> str:
     """Overlay a conspicuous stamp without reserving a band or shrinking the art."""
     image = ""
     if art is not None:
@@ -111,11 +141,14 @@ def _cover_svg(art: Path, media: str, title: str) -> str:
         image += "".join(f'<tspan x="600" dy="76">{html.escape(line)}</tspan>'
                          for line in lines)
         image += '</text>'
+    escaped_label = html.escape(label)
+    # Long localized labels must stay inside the frame instead of clipping.
+    fit = ' textLength="940" lengthAdjust="spacingAndGlyphs"' if len(label) > 18 else ""
     return (f'<?xml version="1.0" encoding="utf-8"?>\n'
             f'<svg xmlns="http://www.w3.org/2000/svg" '
             f'xmlns:xlink="http://www.w3.org/1999/xlink" '
             f'width="1200" height="1800" viewBox="0 0 1200 1800">'
-            f'<title>{LABEL}</title><desc>{html.escape(title)}</desc>'
+            f'<title>{escaped_label}</title><desc>{html.escape(title)}</desc>'
             f'<rect width="1200" height="1800" fill="white"/>{image}'
             # The stamp is painted after the full-size image, not laid out beside
             # it. A translucent backing keeps it readable on any source artwork.
@@ -125,8 +158,8 @@ def _cover_svg(art: Path, media: str, title: str) -> str:
             f'<rect x="108" y="528" width="984" height="174" rx="3" '
             f'fill="none" stroke="#b91c1c" stroke-width="3"/>'
             f'<text x="600" y="650" text-anchor="middle" fill="#b91c1c" '
-            f'font-family="sans-serif" font-size="92" font-weight="bold">'
-            f'{LABEL}</text></g></svg>')
+            f'font-family="sans-serif" font-size="92" font-weight="bold"{fit}>'
+            f'{escaped_label}</text></g></svg>')
 
 
 def _mark_cover_references(root: Path, opf_path: Path, package: ET.Element,
@@ -204,7 +237,7 @@ def _technical_page(cfg: dict, records: list, count: int) -> str:
          "proof of complete semantic fidelity. This page does not certify a "
          "human review or a successful model-based quality assessment."),
     ]
-    body = (f'<h1>{LABEL}</h1><h2>Translation details</h2>'
+    body = (f'<h1>{html.escape(translation_label(cfg))}</h1><h2>Translation details</h2>'
             '<p>This edition was translated using artificial intelligence. '
             'It may contain mistakes, omissions or terminology inconsistencies. '
             'Consult the original when accuracy matters. The original author '
@@ -227,13 +260,14 @@ def _attr(raw: str, name: str, value: str) -> str:
     return changed
 
 
-def _package_edits(source: str, directory: str, ids: dict, epub3: bool) -> str:
+def _package_edits(source: str, directory: str, ids: dict, epub3: bool,
+                   cover_name: str, cover_media: str) -> str:
     """Splice OPF additions by offsets; never reserialize the original XML."""
     item = lambda key, filename, media, extra="": (
         f'<item xmlns="{OPF_NS}" id="{ids[key]}" '
         f'href="{directory}/{filename}" media-type="{media}"{extra}/>')
     additions = (
-        item("image", "cover.svg", "image/svg+xml", ' properties="cover-image"' if epub3 else "")
+        item("image", cover_name, cover_media, ' properties="cover-image"' if epub3 else "")
         + item("cover", "cover.xhtml", "application/xhtml+xml")
         + item("details", "translation.xhtml", "application/xhtml+xml"))
     ref = lambda key: f'<itemref xmlns="{OPF_NS}" idref="{ids[key]}"/>'
@@ -296,15 +330,22 @@ def add_disclosure(target: str, cfg: dict, records: list = None) -> None:
         used.add(candidate)
     folder = opf_path.parent / directory
     folder.mkdir()
-    (folder / "cover.svg").write_text(_cover_svg(art, media, title), encoding="utf-8")
-    _mark_cover_references(root, opf_path, package, art, folder / "cover.svg")
+    label = translation_label(cfg)
+    if render_cover_png(art, folder / "cover.png", label):
+        cover_name, cover_media = "cover.png", "image/png"
+    else:
+        cover_name, cover_media = "cover.svg", "image/svg+xml"
+        (folder / cover_name).write_text(_cover_svg(art, media, title, label), encoding="utf-8")
+    _mark_cover_references(root, opf_path, package, art, folder / cover_name)
+    language = cfg.get("dest_code") or lang_code(cfg.get("target_lang") or "english")
     (folder / "cover.xhtml").write_text(_page(
-        LABEL, f'<div style="text-align:center"><img src="cover.svg" alt="{LABEL}"/></div>', "en"),
-        encoding="utf-8")
+        label, f'<div style="text-align:center"><img src="{cover_name}" '
+        f'alt="{html.escape(label, quote=True)}"/></div>', language), encoding="utf-8")
     spine = package.find(f"{{{OPF_NS}}}spine")
     (folder / "translation.xhtml").write_text(
         _technical_page(cfg, records or [], len(spine)), encoding="utf-8")
-    new_opf = _package_edits(source, directory, ids, package.get("version", "2").startswith("3"))
+    new_opf = _package_edits(source, directory, ids,
+                             package.get("version", "2").startswith("3"), cover_name, cover_media)
     with opf_path.open("w", encoding="utf-8", newline="") as f:
         f.write(new_opf)
 

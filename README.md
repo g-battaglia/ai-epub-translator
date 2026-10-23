@@ -61,12 +61,17 @@ ai-epub-translator run moby-dick                      # translate, verify, judge
 
 ## AI translation disclosure
 
-Every `run` or `pack` export overlays a large, tilted **AI TRANSLATED** stamp on
-the original cover and adds a final **Translation details** page (in English).
-The artwork stays full-size, without a separate banner or cropping, inside a
-self-contained SVG cover; existing cover pages also point
-to the marked image. All original reading-order pages are kept. Use an EPUB
-reader with SVG support.
+Every `run` or `pack` export overlays a large, tilted AI-translation stamp on
+the original cover, localized to the target language (**AI TRANSLATED** in
+English), and adds a final **Translation details** page (in English).
+The artwork stays full-size, without a separate banner or cropping. On macOS,
+the stamp is baked into a PNG using built-in AppKit, so Apple Books can display
+the actual cover in its library. Other platforms use a self-contained SVG and
+need a reader with SVG support. Existing cover pages also point to the marked
+image. All original reading-order pages are kept.
+
+After replacing an EPUB already imported into Apple Books, remove the old library
+entry and import the updated file again if its thumbnail is still cached.
 
 The final page records the language pair, logged model names, export configuration,
 tool version, UTC export time and technical safeguards. Old translations without

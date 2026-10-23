@@ -8,13 +8,14 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 import zipfile
 
-from ai_epub_translator.disclosure import LABEL, OPF_NS, pack_translation
+from ai_epub_translator.disclosure import LABEL, OPF_NS, pack_translation, translation_label
 from ai_epub_translator.epub import find_opf, read_spine, unpack_epub
 from tests.test_epub import _make_minimal_epub
 
 CFG = {"source_lang": "english", "target_lang": "italian", "dest_code": "it",
        "model": "test-model", "batch_chars": 16000, "unit_retries": 2,
        "base_url": "https://user:secret@example.invalid/v1", "api_key": "private"}
+STAMP = translation_label(CFG)
 # A public-domain one-pixel PNG: no book or copyrighted artwork in this fixture.
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP9sAAAAASUVORK5CYII=")
@@ -36,6 +37,11 @@ class TestDisclosure(unittest.TestCase):
         unpack_epub(str(source), str(self.target))
         self.opf = Path(find_opf(str(self.target)))
         self.output = self.root / "out.epub"
+        # Most tests exercise the portable SVG path on every OS. Native PNG
+        # behavior is covered separately, including a real macOS smoke test.
+        renderer = patch('ai_epub_translator.disclosure.render_cover_png', return_value=False)
+        self.raster = renderer.start()
+        self.addCleanup(renderer.stop)
 
     def cover(self, version="2.0", prefixed=False):
         text = self.opf.read_text()
@@ -69,13 +75,13 @@ class TestDisclosure(unittest.TestCase):
         self.assertEqual([Path(p).name for p in spine],
                          ["cover.xhtml", "chapter.xhtml", "translation.xhtml"])
         self.assertEqual(Path(spine[1]).read_bytes(), before["OEBPS/chapter.xhtml"])
-        self.assertIn(LABEL, Path(spine[0]).read_text())
+        self.assertIn(STAMP, ''.join(ET.parse(spine[0]).getroot().itertext()))
         svg = Path(spine[0]).with_name("cover.svg")
         svg_root = ET.parse(svg).getroot()
         stamp = svg_root.find('{http://www.w3.org/2000/svg}g[@id="ai-translation-stamp"]')
         self.assertIn("rotate(", stamp.get("transform"))
         text = stamp.find('{http://www.w3.org/2000/svg}text')
-        self.assertEqual(text.text, LABEL)
+        self.assertEqual(text.text, STAMP)
         self.assertGreaterEqual(int(text.get("font-size")), 90)
         image = svg_root.find('{http://www.w3.org/2000/svg}image')
         self.assertEqual((image.get("x"), image.get("y")), ("0", "0"))
@@ -84,8 +90,8 @@ class TestDisclosure(unittest.TestCase):
         self.assertNotIn("<h1", Path(spine[0]).read_text())
         data = image.get('{http://www.w3.org/1999/xlink}href').split(',', 1)[1]
         self.assertEqual(base64.b64decode(data), PNG)
-        technical = Path(spine[-1]).read_text()
-        for expected in (LABEL, "used-model", "test-model", "english", "italian",
+        technical = ''.join(ET.parse(spine[-1]).getroot().itertext())
+        for expected in (STAMP, "used-model", "test-model", "english", "italian",
                          "UTC", "16000", "not certify a"):
             self.assertIn(expected, technical)
         for secret in ("secret", "private", "example.invalid"):
@@ -122,6 +128,26 @@ class TestDisclosure(unittest.TestCase):
         svg = (folder / "OEBPS/ai-translation/cover.svg").read_text()
         self.assertIn(base64.b64encode(PNG).decode(), svg)
 
+    def test_native_png_is_used_by_metadata_and_both_cover_documents(self):
+        self.cover(version="3.0")
+        page = self.opf.parent / "chapter.xhtml"
+        page.write_text('<html xmlns="http://www.w3.org/1999/xhtml"><body>'
+                        '<img src="art%20work.png"/></body></html>')
+
+        def rasterize(art, destination, label):
+            self.assertEqual(label, "Tradotto con l'AI")
+            destination.write_bytes(PNG)
+            return True
+
+        self.raster.side_effect = rasterize
+        folder, root = self.exported()
+        image = root.find(f'.//{{{OPF_NS}}}item[@properties="cover-image"]')
+        self.assertEqual(image.get("media-type"), "image/png")
+        self.assertEqual(image.get("href"), "ai-translation/cover.png")
+        for page in ("OEBPS/chapter.xhtml", "OEBPS/ai-translation/cover.xhtml"):
+            self.assertIn("cover.png", (folder / page).read_text())
+        self.assertFalse((folder / "OEBPS/ai-translation/cover.svg").exists())
+
     def test_epub3_cover_property_moves_and_other_properties_survive(self):
         self.cover(version="3.0")
         _, root = self.exported()
@@ -145,7 +171,7 @@ class TestDisclosure(unittest.TestCase):
     def test_no_cover_gets_a_marked_title_cover_without_guessing_art(self):
         folder, _ = self.exported()
         svg = folder / "OEBPS/ai-translation/cover.svg"
-        self.assertIn(LABEL, svg.read_text())
+        self.assertIn(STAMP, ''.join(ET.parse(svg).getroot().itertext()))
         technical = folder / "OEBPS/ai-translation/translation.xhtml"
         self.assertIn("Not recorded in the historical", technical.read_text())
         self.assertIn("Model configured at export", technical.read_text())
@@ -194,6 +220,23 @@ class TestDisclosure(unittest.TestCase):
             self.assertEqual(archive.namelist()[0], "mimetype")
             self.assertEqual(archive.getinfo("mimetype").compress_type, zipfile.ZIP_STORED)
             self.assertIsNone(archive.testzip())
+
+
+class TestLocalizedStamp(unittest.TestCase):
+    def test_target_language_is_not_the_source_language(self):
+        self.assertEqual(translation_label(CFG), "Tradotto con l'AI")
+        self.assertEqual(translation_label({"target_lang": "italian"}), "Tradotto con l'AI")
+        self.assertEqual(translation_label({"dest_code": "en"}), LABEL)
+        self.assertEqual(translation_label({"dest_code": "de-DE"}), "KI-übersetzt")
+
+    def test_every_supported_language_has_a_label(self):
+        from ai_epub_translator.config import LANG_CODE
+        for code in LANG_CODE.values():
+            self.assertTrue(translation_label({"dest_code": code}), code)
+
+    def test_unknown_language_fails_instead_of_publishing_wrong_label(self):
+        with self.assertRaisesRegex(ValueError, "localized"):
+            translation_label({"dest_code": "zz"})
 
 
 if __name__ == "__main__":
